@@ -4,22 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { FunctionDeclaration } from '@google/genai';
-import type {
+import { FunctionDeclaration } from '@google/genai';
+import {
   AnyDeclarativeTool,
+  Kind,
   ToolResult,
+  BaseDeclarativeTool,
+  BaseToolInvocation,
   ToolInvocation,
 } from './tools.js';
-import { Kind, BaseDeclarativeTool, BaseToolInvocation } from './tools.js';
-import type { Config } from '../config/config.js';
+import { Config } from '../config/config.js';
 import { spawn } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 import { connectAndDiscover } from './mcp-client.js';
 import { McpClientManager } from './mcp-client-manager.js';
 import { DiscoveredMCPTool } from './mcp-tool.js';
 import { parse } from 'shell-quote';
-import { ToolErrorType } from './tool-error.js';
-import { safeJsonStringify } from '../utils/safeJsonStringify.js';
 
 type ToolParams = Record<string, unknown>;
 
@@ -36,7 +36,7 @@ class DiscoveredToolInvocation extends BaseToolInvocation<
   }
 
   getDescription(): string {
-    return safeJsonStringify(this.params);
+    return `Calling discovered tool: ${this.toolName}`;
   }
 
   async execute(
@@ -105,10 +105,6 @@ class DiscoveredToolInvocation extends BaseToolInvocation<
       return {
         llmContent,
         returnDisplay: llmContent,
-        error: {
-          message: llmContent,
-          type: ToolErrorType.DISCOVERED_TOOL_EXECUTION_ERROR,
-        },
       };
     }
 
@@ -435,13 +431,6 @@ export class ToolRegistry {
       }
     }
     return declarations;
-  }
-
-  /**
-   * Returns an array of all registered and discovered tool names.
-   */
-  getAllToolNames(): string[] {
-    return Array.from(this.tools.keys());
   }
 
   /**
