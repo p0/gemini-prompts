@@ -1,0 +1,13 @@
+{
+  "name": "gemini-prompts",
+  "version": "1.0.0",
+  "description": "Collection of Google Gemini CLI system prompts and tool definitions across versions",
+  "scripts": {
+    "start": "tsx collect.ts",
+    "start:from": "tsx collect.ts --start-from="
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0"
+  }
+}
