@@ -1,0 +1,78 @@
+name: Collect New Gemini CLI Versions
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout gemini-prompts repo
+        uses: actions/checkout@v4
+        with:
+          path: gemini-prompts
+          fetch-depth: 0  # Need full history to check processed versions
+
+      - name: Checkout gemini-cli repo
+        uses: actions/checkout@v4
+        with:
+          repository: google-gemini/gemini-cli
+          path: gemini-cli
+          fetch-depth: 0  # Need all tags
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          cd gemini-prompts
+          npm install
+
+      - name: Configure git
+        run: |
+          cd gemini-prompts
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Get latest processed version
+        id: latest-version
+        run: |
+          cd gemini-prompts
+          LATEST=$(git log --oneline --grep="Add metadata for v0\." | head -1 | sed 's/.*Add metadata for //' || echo "v0.1.6")
+          echo "Latest processed version: $LATEST"
+          echo "version=$LATEST" >> $GITHUB_OUTPUT
+
+      - name: Collect new versions
+        run: |
+          cd gemini-prompts
+          GEMINI_REPO_PATH="${GITHUB_WORKSPACE}/gemini-cli" \
+          COLLECTION_REPO_PATH="${GITHUB_WORKSPACE}/gemini-prompts" \
+          npm start -- --start-from=${{ steps.latest-version.outputs.version }}
+
+      - name: Check for new commits
+        id: git-check
+        run: |
+          cd gemini-prompts
+          git fetch origin main
+          if [ $(git rev-list HEAD...origin/main --count) -gt 0 ]; then
+            echo "has_commits=true" >> $GITHUB_OUTPUT
+            echo "New commits to push"
+          else
+            echo "has_commits=false" >> $GITHUB_OUTPUT
+            echo "No new commits"
+          fi
+
+      - name: Push changes
+        if: steps.git-check.outputs.has_commits == 'true'
+        run: |
+          cd gemini-prompts
+          git push origin main
