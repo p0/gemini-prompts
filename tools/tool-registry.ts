@@ -22,8 +22,6 @@ import type { MessageBus } from '../confirmation-bus/message-bus.js';
 import { debugLogger } from '../utils/debugLogger.js';
 import { coreEvents } from '../utils/events.js';
 
-export const DISCOVERED_TOOL_PREFIX = 'discovered_tool_';
-
 type ToolParams = Record<string, unknown>;
 
 class DiscoveredToolInvocation extends BaseToolInvocation<
@@ -32,12 +30,10 @@ class DiscoveredToolInvocation extends BaseToolInvocation<
 > {
   constructor(
     private readonly config: Config,
-    private readonly originalToolName: string,
-    prefixedToolName: string,
+    private readonly toolName: string,
     params: ToolParams,
-    messageBus?: MessageBus,
   ) {
-    super(params, messageBus, prefixedToolName);
+    super(params);
   }
 
   getDescription(): string {
@@ -49,7 +45,7 @@ class DiscoveredToolInvocation extends BaseToolInvocation<
     _updateOutput?: (output: string) => void,
   ): Promise<ToolResult> {
     const callCommand = this.config.getToolCallCommand()!;
-    const child = spawn(callCommand, [this.originalToolName]);
+    const child = spawn(callCommand, [this.toolName]);
     child.stdin.write(JSON.stringify(this.params));
     child.stdin.end();
 
@@ -128,24 +124,18 @@ export class DiscoveredTool extends BaseDeclarativeTool<
   ToolParams,
   ToolResult
 > {
-  private readonly originalName: string;
-
   constructor(
     private readonly config: Config,
-    originalName: string,
-    prefixedName: string,
-    description: string,
+    name: string,
+    override readonly description: string,
     override readonly parameterSchema: Record<string, unknown>,
-    messageBus?: MessageBus,
   ) {
     const discoveryCmd = config.getToolDiscoveryCommand()!;
     const callCommand = config.getToolCallCommand()!;
-    const fullDescription =
-      description +
-      `
+    description += `
 
 This tool was discovered from the project by executing the command \`${discoveryCmd}\` on project root.
-When called, this tool will execute the command \`${callCommand} ${originalName}\` on project root.
+When called, this tool will execute the command \`${callCommand} ${name}\` on project root.
 Tool discovery and call commands can be configured in project or user settings.
 
 When called, the tool call command is executed as a subprocess.
@@ -159,16 +149,14 @@ Exit Code: Exit code or \`(none)\` if terminated by signal.
 Signal: Signal number or \`(none)\` if no signal was received.
 `;
     super(
-      prefixedName,
-      prefixedName,
-      fullDescription,
+      name,
+      name,
+      description,
       Kind.Other,
       parameterSchema,
       false, // isOutputMarkdown
       false, // canUpdateOutput
-      messageBus,
     );
-    this.originalName = originalName;
   }
 
   protected createInvocation(
@@ -177,13 +165,7 @@ Signal: Signal number or \`(none)\` if no signal was received.
     _toolName?: string,
     _displayName?: string,
   ): ToolInvocation<ToolParams, ToolResult> {
-    return new DiscoveredToolInvocation(
-      this.config,
-      this.originalName,
-      this.name,
-      params,
-      _messageBus,
-    );
+    return new DiscoveredToolInvocation(this.config, this.name, params);
   }
 }
 
@@ -221,43 +203,6 @@ export class ToolRegistry {
       }
     }
     this.tools.set(tool.name, tool);
-  }
-
-  /**
-   * Sorts tools as:
-   * 1. Built in tools.
-   * 2. Discovered tools.
-   * 3. MCP tools ordered by server name.
-   *
-   * This is a stable sort in that ties preseve existing order.
-   */
-  sortTools(): void {
-    const getPriority = (tool: AnyDeclarativeTool): number => {
-      if (tool instanceof DiscoveredMCPTool) return 2;
-      if (tool instanceof DiscoveredTool) return 1;
-      return 0; // Built-in
-    };
-
-    this.tools = new Map(
-      Array.from(this.tools.entries()).sort((a, b) => {
-        const toolA = a[1];
-        const toolB = b[1];
-        const priorityA = getPriority(toolA);
-        const priorityB = getPriority(toolB);
-
-        if (priorityA !== priorityB) {
-          return priorityA - priorityB;
-        }
-
-        if (priorityA === 2) {
-          const serverA = (toolA as DiscoveredMCPTool).serverName;
-          const serverB = (toolB as DiscoveredMCPTool).serverName;
-          return serverA.localeCompare(serverB);
-        }
-
-        return 0;
-      }),
-    );
   }
 
   private removeDiscoveredTools(): void {
@@ -403,10 +348,8 @@ export class ToolRegistry {
           new DiscoveredTool(
             this.config,
             func.name,
-            DISCOVERED_TOOL_PREFIX + func.name,
             func.description ?? '',
             parameters as Record<string, unknown>,
-            this.messageBus,
           ),
         );
       }
