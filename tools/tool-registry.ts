@@ -416,7 +416,7 @@ export class ToolRegistry {
         );
       }
     } catch (e) {
-      debugLogger.error(`Tool discovery command "${discoveryCmd}" failed:`, e);
+      console.error(`Tool discovery command "${discoveryCmd}" failed:`, e);
       throw e;
     }
   }
