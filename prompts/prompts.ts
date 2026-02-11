@@ -5,7 +5,6 @@
  */
 
 import type { Config } from '../config/config.js';
-import type { HierarchicalMemory } from '../config/memory.js';
 import { PromptProvider } from '../prompts/promptProvider.js';
 import { resolvePathFromEnv as resolvePathFromEnvImpl } from '../prompts/utils.js';
 
@@ -22,7 +21,7 @@ export function resolvePathFromEnv(envVar?: string) {
  */
 export function getCoreSystemPrompt(
   config: Config,
-  userMemory?: string | HierarchicalMemory,
+  userMemory?: string,
   interactiveOverride?: boolean,
 ): string {
   return new PromptProvider().getCoreSystemPrompt(
@@ -35,6 +34,6 @@ export function getCoreSystemPrompt(
 /**
  * Provides the system prompt for the history compression process.
  */
-export function getCompressionPrompt(config: Config): string {
-  return new PromptProvider().getCompressionPrompt(config);
+export function getCompressionPrompt(): string {
+  return new PromptProvider().getCompressionPrompt();
 }
