@@ -12,7 +12,6 @@ import type {
 } from './tools.js';
 import { Kind, BaseDeclarativeTool, BaseToolInvocation } from './tools.js';
 import type { Config } from '../config/config.js';
-import { ApprovalMode } from '../policy/types.js';
 import { spawn } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 import { DiscoveredMCPTool } from './mcp-tool.js';
@@ -26,8 +25,6 @@ import {
   DISCOVERED_TOOL_PREFIX,
   TOOL_LEGACY_ALIASES,
   getToolAliases,
-  WRITE_FILE_TOOL_NAME,
-  EDIT_TOOL_NAME,
 } from './tool-names.js';
 
 type ToolParams = Record<string, unknown>;
@@ -389,7 +386,6 @@ export class ToolRegistry {
 
       // execute discovery command and extract function declarations (w/ or w/o "tool" wrappers)
       const functions: FunctionDeclaration[] = [];
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const discoveredItems = JSON.parse(stdout.trim());
 
       if (!discoveredItems || !Array.isArray(discoveredItems)) {
@@ -440,32 +436,13 @@ export class ToolRegistry {
     }
   }
 
-  private buildToolMetadata(): Map<string, Record<string, unknown>> {
-    const toolMetadata = new Map<string, Record<string, unknown>>();
-    for (const [name, tool] of this.allKnownTools) {
-      if (tool.toolAnnotations) {
-        const metadata: Record<string, unknown> = { ...tool.toolAnnotations };
-        // Include server name so the policy engine can resolve composite
-        // wildcard patterns (e.g. "*__*") against unqualified tool names.
-        if (tool instanceof DiscoveredMCPTool) {
-          metadata['_serverName'] = tool.serverName;
-        }
-        toolMetadata.set(name, metadata);
-      }
-    }
-    return toolMetadata;
-  }
-
   /**
    * @returns All the tools that are not excluded.
    */
   private getActiveTools(): AnyDeclarativeTool[] {
-    const toolMetadata = this.buildToolMetadata();
-    const allKnownNames = new Set(this.allKnownTools.keys());
     const excludedTools =
-      this.expandExcludeToolsWithAliases(
-        this.config.getExcludeTools(toolMetadata, allKnownNames),
-      ) ?? new Set([]);
+      this.expandExcludeToolsWithAliases(this.config.getExcludeTools()) ??
+      new Set([]);
     const activeTools: AnyDeclarativeTool[] = [];
     for (const tool of this.allKnownTools.values()) {
       if (this.isActiveTool(tool, excludedTools)) {
@@ -505,13 +482,8 @@ export class ToolRegistry {
     excludeTools?: Set<string>,
   ): boolean {
     excludeTools ??=
-      this.expandExcludeToolsWithAliases(
-        this.config.getExcludeTools(
-          this.buildToolMetadata(),
-          new Set(this.allKnownTools.keys()),
-        ),
-      ) ?? new Set([]);
-
+      this.expandExcludeToolsWithAliases(this.config.getExcludeTools()) ??
+      new Set([]);
     const normalizedClassName = tool.constructor.name.replace(/^_+/, '');
     const possibleNames = [tool.name, normalizedClassName];
     if (tool instanceof DiscoveredMCPTool) {
@@ -535,22 +507,9 @@ export class ToolRegistry {
    * @returns An array of FunctionDeclarations.
    */
   getFunctionDeclarations(modelId?: string): FunctionDeclaration[] {
-    const isPlanMode = this.config.getApprovalMode() === ApprovalMode.PLAN;
-    const plansDir = this.config.storage.getPlansDir();
-
     const declarations: FunctionDeclaration[] = [];
     this.getActiveTools().forEach((tool) => {
-      let schema = tool.getSchema(modelId);
-      if (
-        isPlanMode &&
-        (tool.name === WRITE_FILE_TOOL_NAME || tool.name === EDIT_TOOL_NAME)
-      ) {
-        schema = {
-          ...schema,
-          description: `ONLY FOR PLANS: ${schema.description}. You are currently in Plan Mode and may ONLY use this tool to write or update plans (.md files) in the plans directory: ${plansDir}/. You cannot use this tool to modify source code directly.`,
-        };
-      }
-      declarations.push(schema);
+      declarations.push(tool.getSchema(modelId));
     });
     return declarations;
   }
