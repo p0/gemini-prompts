@@ -539,32 +539,11 @@ export class ToolRegistry {
     const plansDir = this.config.storage.getPlansDir();
 
     const declarations: FunctionDeclaration[] = [];
-    const seenNames = new Set<string>();
-
     this.getActiveTools().forEach((tool) => {
-      const toolName =
-        tool instanceof DiscoveredMCPTool
-          ? tool.getFullyQualifiedName()
-          : tool.name;
-
-      if (seenNames.has(toolName)) {
-        return;
-      }
-      seenNames.add(toolName);
-
       let schema = tool.getSchema(modelId);
-
-      // Ensure the schema name matches the qualified name for MCP tools
-      if (tool instanceof DiscoveredMCPTool) {
-        schema = {
-          ...schema,
-          name: toolName,
-        };
-      }
-
       if (
         isPlanMode &&
-        (toolName === WRITE_FILE_TOOL_NAME || toolName === EDIT_TOOL_NAME)
+        (tool.name === WRITE_FILE_TOOL_NAME || tool.name === EDIT_TOOL_NAME)
       ) {
         schema = {
           ...schema,
@@ -597,42 +576,20 @@ export class ToolRegistry {
   }
 
   /**
-   * Returns an array of names for all active tools.
-   * For MCP tools, this returns their fully qualified names.
-   * The list is deduplicated.
+   * Returns an array of all registered and discovered tool names which are not
+   * excluded via configuration.
    */
   getAllToolNames(): string[] {
-    const names = new Set<string>();
-    for (const tool of this.getActiveTools()) {
-      if (tool instanceof DiscoveredMCPTool) {
-        names.add(tool.getFullyQualifiedName());
-      } else {
-        names.add(tool.name);
-      }
-    }
-    return Array.from(names);
+    return this.getActiveTools().map((tool) => tool.name);
   }
 
   /**
    * Returns an array of all registered and discovered tool instances.
    */
   getAllTools(): AnyDeclarativeTool[] {
-    const seen = new Set<string>();
-    const tools: AnyDeclarativeTool[] = [];
-
-    for (const tool of this.getActiveTools().sort((a, b) =>
+    return this.getActiveTools().sort((a, b) =>
       a.displayName.localeCompare(b.displayName),
-    )) {
-      const name =
-        tool instanceof DiscoveredMCPTool
-          ? tool.getFullyQualifiedName()
-          : tool.name;
-      if (!seen.has(name)) {
-        seen.add(name);
-        tools.push(tool);
-      }
-    }
-    return tools;
+    );
   }
 
   /**
