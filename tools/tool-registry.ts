@@ -5,14 +5,12 @@
  */
 
 import type { FunctionDeclaration } from '@google/genai';
-import {
-  Kind,
-  BaseDeclarativeTool,
-  BaseToolInvocation,
-  type AnyDeclarativeTool,
-  type ToolResult,
-  type ToolInvocation,
+import type {
+  AnyDeclarativeTool,
+  ToolResult,
+  ToolInvocation,
 } from './tools.js';
+import { Kind, BaseDeclarativeTool, BaseToolInvocation } from './tools.js';
 import type { Config } from '../config/config.js';
 import { ApprovalMode } from '../policy/types.js';
 import { spawn } from 'node:child_process';
@@ -445,13 +443,15 @@ export class ToolRegistry {
   private buildToolMetadata(): Map<string, Record<string, unknown>> {
     const toolMetadata = new Map<string, Record<string, unknown>>();
     for (const [name, tool] of this.allKnownTools) {
-      if (tool.toolAnnotations) {
-        const metadata: Record<string, unknown> = { ...tool.toolAnnotations };
-        // Include server name so the policy engine can resolve composite
-        // wildcard patterns (e.g. "*__*") against unqualified tool names.
-        if (tool instanceof DiscoveredMCPTool) {
-          metadata['_serverName'] = tool.serverName;
-        }
+      const metadata: Record<string, unknown> = tool.toolAnnotations
+        ? { ...tool.toolAnnotations }
+        : {};
+      // Include server name so the policy engine can resolve composite
+      // wildcard patterns (e.g. "*__*") against unqualified tool names.
+      if (tool instanceof DiscoveredMCPTool) {
+        metadata['_serverName'] = tool.serverName;
+      }
+      if (Object.keys(metadata).length > 0) {
         toolMetadata.set(name, metadata);
       }
     }
